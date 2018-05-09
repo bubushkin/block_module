@@ -1,96 +1,78 @@
-#ifndef __FSIA253_H__
-#define __FSIA253_H__
 
+#define DRIVER_NAME "fs_ia253"
+
+#include<linux/cdev.h>
+#include<linux/device.h>
+#include<linux/fs.h>
+#include<linux/init.h>
+#include<linux/kdev_t.h>
+#include<linux/module.h>
+#include<linux/types.h>
+#include<linux/uaccess.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 
-const unsigned long FSIA253_MAGIC_NUM = 0xBBBBCCCC9999
+/*
+ * helpers
+ */
+#define PDEBUG(fmt,args...) printk(KERN_DEBUG"%s:"fmt,DRIVER_NAME, ##args)
+#define PERR(fmt,args...) printk(KERN_ERR"%s:"fmt,DRIVER_NAME,##args)
+#define PINFO(fmt,args...) printk(KERN_INFO"%s:"fmt,DRIVER_NAME, ##args)
+#define PCRIT(fmt,args...) printk(KERN_CRIT"%s:"fmt,DRIVER_NAME, ##args)
+
+#define IA253_MAGIC_NUM 0xBBCC99
+#define IA253_DEFAULT_MODE	0755
 
 struct file_system_type fs_ia253_type;
-struct file_operations fs_ia253_file_ops;
 
-struct kmem_cache *inode_kcache;
+enum {
+	Opt_mode,
+	Opt_err
+};
 
-
-struct meta_disk_inode {
-	#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-		__le32	e_i_first;
-		__le32	e_i_blocks;
-		__le32	e_i_size;
-		__le32	e_i_gid;
-		__le32	e_i_uid;
-		__le32	e_i_mode;
-		__le64	e_i_ctime;
-	#else
-		__be32	e_i_first;
-		__be32	e_i_blocks;
-		__be32	e_i_size;
-		__be32	e_i_gid;
-		__be32	e_i_uid;
-		__be32	e_i_mode;
-		__be64	e_i_ctime;
-	#endif
+static const match_table_t tokens = {
+	{Opt_mode, "mode=%o"},
+	{Opt_err, NULL}
 };
 
 
-/*
-	filesystem
-*/
-void fs_inode_init(void *);
-struct dentry *fs_mount(struct file_system_type *, int, char const *, void *);
-
-struct fs_param{
+struct fs_meta_param{
 
 	char *fs_name;
-	char *inode_name;
+	char *kcache_name;
 	char *module_name;
-	char *module_author;
-	char *author_email;
 
-} p_fs_params;
-
-struct fs_inode {
-	struct inode fs_inode;
-	unsigned long fsblock;
 };
 
 /*
-	superblock
-*/
+ * Super block
+ */
 
-struct super_operations ia253_super_ops;
+struct super_operations fs_super_ops;
 
-int init_superblock(struct super_block *, void *, int)
-struct fs_ia253_sb *init_logical_block(struct super_block *);
+int ia253_init_super(struct super_block *, void *, int);
+struct dentry *fs_mount(struct file_system_type *, int, const char *, void *);
+void fs_kill_sb(struct super_block *);
 
-struct meta_disk_sb {
-	#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-		__le32	e_magic_num;
-		__le32	e_block_size;
-		__le32	e_root_inode;
-		__le32	e_inode_blocks;
-	#else
-		__be32	e_magic_num;
-		__be32	e_block_size;
-		__be32	e_root_inode;
-		__be32	e_inode_blocks;
-	#endif
+
+struct fs_mount_opts {
+	umode_t mode;
 };
 
-struct fs_ia253_sb { //logical block structure!
-
-	unsigned long inode_blocks;
-	unsigned long block_size;
-	unsigned long magic_num;
-	unsigned long root;
-	unsigned long inode_blocks;
+struct fs_fs_info {
+	struct fs_mount_opts mount_opts;
 };
 
+
+int fs_show_proc_mode(struct seq_file *, struct dentry *);
+
+
+struct address_space_operations fs_addr_ops;
+struct inode_operations file_inode_ops;
+struct file_operations fs_file_ops;
+struct inode_operations fs_dir_inode_ops;
 /*
-	cache initializers/destructors
-*/
-int inode_cache_alloc(void);
-void fs_release_all(void);
-
-#endif
+ * inode
+ */
+struct inode *fs_get_inode(struct super_block *, const struct inode *, umode_t, dev_t);
